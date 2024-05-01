@@ -2,17 +2,13 @@ package go_orm
 
 import (
 	"context"
-	"fmt"
-	"reflect"
+	"github.com/Andras5014/go-orm/internal/errs"
 	"strings"
-)
-
-var (
-	ErrUnsupportedExpr = fmt.Errorf("unsupported expression")
 )
 
 type Selector[T any] struct {
 	table string
+	model *model
 	where []Predicate
 	sb    *strings.Builder
 	args  []any
@@ -20,14 +16,18 @@ type Selector[T any] struct {
 
 func (s *Selector[T]) Build() (*Query, error) {
 	s.sb = &strings.Builder{}
+	var err error
+	s.model, err = parseModel(new(T))
+
+	if err != nil {
+		return nil, err
+	}
 	sb := s.sb
 	sb.WriteString("SELECT * FROM ")
 
 	if s.table == "" {
-		var t T
-		typ := reflect.TypeOf(t)
 		sb.WriteByte('`')
-		sb.WriteString(typ.Name())
+		sb.WriteString(s.model.tableName)
 		sb.WriteByte('`')
 	} else {
 
@@ -90,16 +90,20 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 		}
 
 	case Column:
+
+		fd, ok := s.model.fields[exp.name]
+		if !ok {
+			return errs.NewErrUnknownField(exp.name)
+		}
 		s.sb.WriteByte('`')
-		s.sb.WriteString(exp.name)
+		s.sb.WriteString(fd.colName)
 		s.sb.WriteByte('`')
 
 	case value:
 		s.addArg(exp.arg)
 		s.sb.WriteString("?")
 	default:
-
-		return ErrUnsupportedExpr
+		return errs.NewErrUnsupportedExpr(exp)
 	}
 	return nil
 }
