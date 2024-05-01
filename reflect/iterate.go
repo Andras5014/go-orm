@@ -1,0 +1,26 @@
+package reflect
+
+import "reflect"
+
+func IterateArrayOrSlice(entity any) ([]any, error) {
+	val := reflect.ValueOf(entity)
+	res := make([]any, 0, val.Len())
+	for i := 0; i < val.Len(); i++ {
+		ele := val.Index(i)
+		res = append(res, ele.Interface())
+	}
+	return res, nil
+}
+
+// IterateMap 返回值keys， values， error
+func IterateMap(entity any) ([]any, []any, error) {
+	val := reflect.ValueOf(entity)
+	resKeys := make([]any, 0, val.Len())
+	resValues := make([]any, 0, val.Len())
+	keys := val.MapKeys()
+	for _, key := range keys {
+		resKeys = append(resKeys, key.Interface())
+		resValues = append(resValues, val.MapIndex(key).Interface())
+	}
+	return resKeys, resValues, nil
+}
