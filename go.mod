@@ -2,7 +2,11 @@ module github.com/Andras5014/go-orm
 
 go 1.21
 
-require github.com/stretchr/testify v1.9.0
+require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/mattn/go-sqlite3 v1.14.22
+	github.com/stretchr/testify v1.9.0
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

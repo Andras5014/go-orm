@@ -1,22 +1,35 @@
 package go_orm
 
+import "database/sql"
+
 type DBOption func(db *DB)
+
+// DB is the sqlDB wrapper
 type DB struct {
-	r *registry
+	r  *registry
+	db *sql.DB
 }
 
-func NewDB(opts ...DBOption) (*DB, error) {
-	db := &DB{
-		r: newRegistry(),
+func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {
+	db, err := sql.Open(driver, dataSourceName)
+	if err != nil {
+		return nil, err
+	}
+
+	return OpenDB(db, opts...)
+}
+func OpenDB(db *sql.DB, opts ...DBOption) (*DB, error) {
+	res := &DB{
+		r:  newRegistry(),
+		db: db,
 	}
 	for _, opt := range opts {
-		opt(db)
+		opt(res)
 	}
-	return db, nil
+	return res, nil
 }
-
-func MustNewDB(opts ...DBOption) *DB {
-	db, err := NewDB(opts...)
+func MustOpenDB(driver string, dataSourceName string, opts ...DBOption) *DB {
+	db, err := Open(driver, dataSourceName, opts...)
 	if err != nil {
 		panic(err)
 	}

@@ -5,7 +5,7 @@ type op string
 const (
 	opEq  op = "="
 	opLt  op = "<"
-	opRt  op = ">"
+	opGt  op = ">"
 	opNot op = "NOT"
 	opAnd op = "AND"
 	opOr  op = "OR"
@@ -58,10 +58,10 @@ func (c Column) Lt(arg any) Predicate {
 		right: value{arg: arg},
 	}
 }
-func (c Column) Rt(arg any) Predicate {
+func (c Column) Gt(arg any) Predicate {
 	return Predicate{
 		left:  c,
-		op:    opRt,
+		op:    opGt,
 		right: value{arg: arg},
 	}
 }
