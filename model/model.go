@@ -1,4 +1,4 @@
-package go_orm
+package model
 
 import (
 	"github.com/Andras5014/go-orm/internal/errs"
@@ -14,24 +14,27 @@ const (
 
 type Registry interface {
 	Get(entity any) (*Model, error)
-	Register(entity any, opts ...ModelOption) (*Model, error)
+	Register(entity any, opts ...Option) (*Model, error)
 }
 type Model struct {
-	tableName string
+	TableName string
 	// 字段名 -> 字段
-	fieldMap map[string]*Field
+	FieldMap map[string]*Field
 	// 列名 -> 字段
-	columnMap map[string]*Field
+	ColumnMap map[string]*Field
 }
 
-type ModelOption func(model *Model) error
+type Option func(model *Model) error
 
 type Field struct {
-	colName string
+	ColName string
 	//代码中字段名
-	goName string
+	GoName string
 	// 字段类型
-	typ reflect.Type
+	Typ reflect.Type
+
+	// 字段相对于结构体偏移量
+	Offset uintptr
 }
 
 //var defaultRegistry = &registry{
@@ -45,7 +48,7 @@ type registry struct {
 	//models map[reflect.Type]*Model
 }
 
-func newRegistry() *registry {
+func NewRegistry() Registry {
 	return &registry{}
 }
 
@@ -68,9 +71,9 @@ func (r *registry) Get(entity any) (*Model, error) {
 }
 
 //func (r *registry) get1(entity any) (*Model, error) {
-//	typ := reflect.TypeOf(entity)
+//	Typ := reflect.TypeOf(entity)
 //	r.lock.RLock()
-//	m, ok := r.models[typ]
+//	m, ok := r.models[Typ]
 //	r.lock.RUnlock()
 //	if ok {
 //		return m, nil
@@ -78,7 +81,7 @@ func (r *registry) Get(entity any) (*Model, error) {
 //	r.lock.Lock()
 //	defer r.lock.Unlock()
 //
-//	m, ok = r.models[typ]
+//	m, ok = r.models[Typ]
 //	if ok {
 //		return m, nil
 //	}
@@ -87,12 +90,12 @@ func (r *registry) Get(entity any) (*Model, error) {
 //	if err != nil {
 //		return nil, err
 //	}
-//	r.models[typ] = m
+//	r.models[Typ] = m
 //	return m, nil
 //}
 
 // Register 解析实体类限制只能用一级指针
-func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
+func (r *registry) Register(entity any, opts ...Option) (*Model, error) {
 	typ := reflect.TypeOf(entity)
 	if typ.Kind() != reflect.Ptr || typ.Elem().Kind() != reflect.Struct {
 		return nil, errs.ErrPointerOnly
@@ -113,9 +116,10 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 			colName = underscoreName(fd.Name)
 		}
 		fdMeta := &Field{
-			colName: colName,
-			typ:     fd.Type,
-			goName:  fd.Name,
+			ColName: colName,
+			Typ:     fd.Type,
+			GoName:  fd.Name,
+			Offset:  fd.Offset,
 		}
 		fieldMap[fd.Name] = fdMeta
 		columnMap[colName] = fdMeta
@@ -129,9 +133,9 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 	}
 
 	res := &Model{
-		tableName: tableName,
-		fieldMap:  fieldMap,
-		columnMap: columnMap,
+		TableName: tableName,
+		FieldMap:  fieldMap,
+		ColumnMap: columnMap,
 	}
 	for _, opt := range opts {
 		err := opt(res)
@@ -143,19 +147,19 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 	return res, nil
 }
 
-func ModelWithTableName(tableName string) ModelOption {
+func WithTableName(tableName string) Option {
 	return func(model *Model) error {
-		model.tableName = tableName
+		model.TableName = tableName
 		return nil
 	}
 }
-func ModelWithColumnName(field string, colName string) ModelOption {
+func WithColumnName(field string, colName string) Option {
 	return func(model *Model) error {
-		fd, ok := model.fieldMap[field]
+		fd, ok := model.FieldMap[field]
 		if !ok {
 			return errs.NewErrUnknownField(field)
 		}
-		fd.colName = colName
+		fd.ColName = colName
 		return nil
 	}
 }
@@ -197,4 +201,8 @@ func underscoreName(tableName string) string {
 		}
 	}
 	return string(buf)
+}
+
+type TableName interface {
+	TableName() string
 }

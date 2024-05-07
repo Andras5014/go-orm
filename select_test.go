@@ -171,3 +171,38 @@ func memoryDB(t *testing.T) *DB {
 	require.NoError(t, err)
 	return db
 }
+
+func TestSelector_Select(t *testing.T) {
+	db := memoryDB(t)
+	testCases := []struct {
+		name      string
+		builder   QueryBuilder
+		wantQuery *Query
+		wantErr   error
+	}{
+		{
+			name:    "select",
+			builder: NewSelector[TestModel](db).Select("first_name", "last_name"),
+			wantQuery: &Query{
+				SQL: "SELECT `first_name`,`last_name` FROM `test_model`;",
+			},
+		},
+		{
+			name:    "select all",
+			builder: NewSelector[TestModel](db).Select(),
+			wantQuery: &Query{
+				SQL: "SELECT * FROM `test_model`;",
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			q, err := tc.builder.Build()
+			assert.EqualValues(t, tc.wantErr, err)
+			if err != nil {
+				return
+			}
+			assert.Equal(t, tc.wantQuery, q)
+		})
+	}
+}

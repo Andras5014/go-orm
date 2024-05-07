@@ -3,17 +3,23 @@ package go_orm
 import (
 	"context"
 	"github.com/Andras5014/go-orm/internal/errs"
-	"reflect"
+	"github.com/Andras5014/go-orm/model"
 	"strings"
 )
 
+// Selectable 是一个标记接口
+// 查找的列，聚合函数
+type Selectable interface {
+	selectable()
+}
 type Selector[T any] struct {
-	table string
-	model *Model
-	where []Predicate
-	sb    *strings.Builder
-	args  []any
-	db    *DB
+	table   string
+	model   *model.Model
+	where   []Predicate
+	columns []string
+	sb      *strings.Builder
+	args    []any
+	db      *DB
 	//r *registry
 }
 
@@ -33,11 +39,24 @@ func (s *Selector[T]) Build() (*Query, error) {
 		return nil, err
 	}
 	sb := s.sb
-	sb.WriteString("SELECT * FROM ")
+	sb.WriteString("SELECT ")
+	if len(s.columns) > 0 {
+		for i, col := range s.columns {
+			if i > 0 {
+				sb.WriteByte(',')
+			}
+			sb.WriteString("`")
+			sb.WriteString(col)
+			sb.WriteString("`")
+		}
+	} else {
+		sb.WriteByte('*')
+	}
+	sb.WriteString(" FROM ")
 
 	if s.table == "" {
 		sb.WriteByte('`')
-		sb.WriteString(s.model.tableName)
+		sb.WriteString(s.model.TableName)
 		sb.WriteByte('`')
 	} else {
 
@@ -101,12 +120,12 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 
 	case Column:
 
-		fd, ok := s.model.fieldMap[exp.name]
+		fd, ok := s.model.FieldMap[exp.name]
 		if !ok {
 			return errs.NewErrUnknownField(exp.name)
 		}
 		s.sb.WriteByte('`')
-		s.sb.WriteString(fd.colName)
+		s.sb.WriteString(fd.ColName)
 		s.sb.WriteByte('`')
 
 	case value:
@@ -123,6 +142,10 @@ func (s *Selector[T]) addArg(val any) *Selector[T] {
 		s.args = make([]any, 0, 8)
 	}
 	s.args = append(s.args, val)
+	return s
+}
+func (s *Selector[T]) Select(columns ...string) *Selector[T] {
+	s.columns = columns
 	return s
 }
 func (s *Selector[T]) From(table string) *Selector[T] {
@@ -151,51 +174,52 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 		return nil, ErrNoRows
 	}
 
-	// 拿到 select 出来的列
-	cs, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
 	tp := new(T)
+	val := s.db.creator(s.model, tp)
+	err = val.SetColumns(rows)
+	return tp, err
 
-	vals := make([]any, 0, len(cs))
-	valElems := make([]reflect.Value, 0, len(cs))
-	for _, c := range cs {
-		fd, ok := s.model.columnMap[c]
-		if !ok {
-			return nil, errs.NewErrUnknownColumn(c)
-		}
-		val := reflect.New(fd.typ)
-		vals = append(vals, val.Interface())
-		valElems = append(valElems, val.Elem())
-
-	}
-	err = rows.Scan(vals...)
-	if err != nil {
-		return nil, err
-	}
-	tpValueElem := reflect.ValueOf(tp).Elem()
-	for i, c := range cs {
-		fd, ok := s.model.columnMap[c]
-		if !ok {
-			return nil, errs.NewErrUnknownColumn(c)
-		}
-		tpValueElem.FieldByName(fd.goName).Set(valElems[i])
-
-	}
-	return tp, nil
 }
 
-func (s *Selector[T]) GetMulti(ctx context.Context) (*[]T, error) {
-	//q, err := s.Build()
-	//if err != nil {
-	//	return nil, err
-	//}
-	//// 执行查询, 处理结果集
-	//db := s.db.db
-	//rows, err := db.QueryContext(ctx, q.SQL, q.Args...)
-	//for rows.Next() {
-	//
-	//}
-	panic("implement me")
+//func (s *Selector[T]) GetV1(ctx context.Context) (*T, error) {
+//	q, err := s.Build()
+//	// 构造sql失败
+//	if err != nil {
+//		return nil, err
+//	}
+//	// 发起查询, 处理结果集
+//	db := s.db.db
+//	rows, err := db.QueryContext(ctx, q.SQL, q.Args...)
+//	// 查询错误
+//	if err != nil {
+//		return nil, err
+//	}
+//	if !rows.Next() {
+//		return nil, ErrNoRows
+//	}
+//
+//}
+
+func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
+	q, err := s.Build()
+	if err != nil {
+		return nil, err
+	}
+	// 执行查询, 处理结果集
+	db := s.db.db
+	rows, err := db.QueryContext(ctx, q.SQL, q.Args...)
+	if err != nil {
+		return nil, err
+	}
+	var res []*T
+	for rows.Next() {
+		tp := new(T)
+		val := s.db.creator(s.model, tp)
+		err = val.SetColumns(rows)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, tp)
+	}
+	return res, nil
 }

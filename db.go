@@ -1,13 +1,18 @@
 package go_orm
 
-import "database/sql"
+import (
+	"database/sql"
+	"github.com/Andras5014/go-orm/internal/valuer"
+	"github.com/Andras5014/go-orm/model"
+)
 
 type DBOption func(db *DB)
 
 // DB is the sqlDB wrapper
 type DB struct {
-	r  *registry
-	db *sql.DB
+	r       model.Registry
+	db      *sql.DB
+	creator valuer.Creator
 }
 
 func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {
@@ -20,13 +25,24 @@ func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {
 }
 func OpenDB(db *sql.DB, opts ...DBOption) (*DB, error) {
 	res := &DB{
-		r:  newRegistry(),
-		db: db,
+		r:       model.NewRegistry(),
+		db:      db,
+		creator: valuer.NewUnsafeValue,
 	}
 	for _, opt := range opts {
 		opt(res)
 	}
 	return res, nil
+}
+func DBWithRegistry(r model.Registry) DBOption {
+	return func(db *DB) {
+		db.r = r
+	}
+}
+func DBUseReflect() DBOption {
+	return func(db *DB) {
+		db.creator = valuer.NewReflectValue
+	}
 }
 func MustOpenDB(driver string, dataSourceName string, opts ...DBOption) *DB {
 	db, err := Open(driver, dataSourceName, opts...)

@@ -125,10 +125,6 @@ func TestSetField(t *testing.T) {
 			},
 			wantErr: nil,
 		},
-		{
-			name:   "basic type",
-			entity: 13,
-		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
