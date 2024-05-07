@@ -15,11 +15,6 @@ func (o op) String() string {
 	return string(o)
 }
 
-// Expression 标记接口，代表表达式
-type Expression interface {
-	expr()
-}
-
 type Predicate struct {
 	left  Expression
 	op    op

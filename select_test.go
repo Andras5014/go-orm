@@ -83,6 +83,44 @@ func TestSelector_Build(t *testing.T) {
 			builder: NewSelector[TestModel](db).Where(C("XXXX").Eq("Tom")),
 			wantErr: errs.NewErrUnknownField("XXXX"),
 		},
+		{
+			name:    "raw expression as predicate",
+			builder: NewSelector[TestModel](db).Where(Raw("`id`<?", 18).AsPredicate()),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE `id`<?;",
+				Args: []any{18},
+			},
+		},
+		{
+			name:    "raw expression used in predicate",
+			builder: NewSelector[TestModel](db).Where(C("Id").Eq(Raw("`age`+?", 18))),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE `id` = `age`+?;",
+				Args: []any{18},
+			},
+		},
+		{
+			name:    "columns alias",
+			builder: NewSelector[TestModel](db).Select(C("FirstName").As("my_name")),
+			wantQuery: &Query{
+				SQL: "SELECT `first_name` AS `my_name` FROM `test_model`;",
+			},
+		},
+		{
+			name:    "avg alias",
+			builder: NewSelector[TestModel](db).Select(Avg("FirstName").As("my_name")),
+			wantQuery: &Query{
+				SQL: "SELECT AVG(`first_name`) AS `my_name` FROM `test_model`;",
+			},
+		},
+		{
+			name:    "columns alias in where",
+			builder: NewSelector[TestModel](db).Where(C("FirstName").As("my_name").Eq("Tom")),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE `first_name` = ?;",
+				Args: []any{"Tom"},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -199,6 +237,7 @@ func TestSelector_Select(t *testing.T) {
 			builder: NewSelector[TestModel](db).Select(C("invalid")),
 			wantErr: errs.NewErrUnknownField("invalid"),
 		},
+
 		{
 			name:    " avg",
 			builder: NewSelector[TestModel](db).Select(Avg("Age")),
@@ -254,6 +293,13 @@ func TestSelector_Select(t *testing.T) {
 			builder: NewSelector[TestModel](db).Select(Avg("Age"), Max("Age"), Min("Age"), Count("Age"), Sum("Age")),
 			wantQuery: &Query{
 				SQL: "SELECT AVG(`age`),MAX(`age`),MIN(`age`),COUNT(`age`),SUM(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name:    "raw expression",
+			builder: NewSelector[TestModel](db).Select(Raw("COUNT(DISTINCT `first_name`)")),
+			wantQuery: &Query{
+				SQL: "SELECT COUNT(DISTINCT `first_name`) FROM `test_model`;",
 			},
 		},
 	}

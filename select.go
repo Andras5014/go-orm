@@ -93,9 +93,12 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 		if ok {
 			s.sb.WriteByte(')')
 		}
-		s.sb.WriteByte(' ')
-		s.sb.WriteString(exp.op.String())
-		s.sb.WriteByte(' ')
+		if exp.op != "" {
+			s.sb.WriteByte(' ')
+			s.sb.WriteString(exp.op.String())
+			s.sb.WriteByte(' ')
+		}
+
 		_, ok = exp.right.(Predicate)
 		if ok {
 			s.sb.WriteByte('(')
@@ -108,10 +111,14 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 		}
 
 	case Column:
-		return s.buildColumn(exp.name)
+		exp.alias = ""
+		return s.buildColumn(exp)
 	case value:
 		s.addArg(exp.arg)
 		s.sb.WriteString("?")
+	case RawExpr:
+		s.sb.WriteString(exp.raw)
+		s.addArg(exp.args...)
 	default:
 		return errs.NewErrUnsupportedExpr(exp)
 	}
@@ -128,18 +135,26 @@ func (s *Selector[T]) buildColumns() error {
 		}
 		switch c := col.(type) {
 		case Column:
-			err := s.buildColumn(c.name)
+			err := s.buildColumn(c)
 			if err != nil {
 				return err
 			}
 		case Aggregate:
 			s.sb.WriteString(c.fn)
 			s.sb.WriteByte('(')
-			err := s.buildColumn(c.arg)
+			err := s.buildColumn(Column{name: c.arg})
 			if err != nil {
 				return err
 			}
 			s.sb.WriteByte(')')
+			if c.alias != "" {
+				s.sb.WriteString(" AS `")
+				s.sb.WriteString(c.alias)
+				s.sb.WriteByte('`')
+			}
+		case RawExpr:
+			s.sb.WriteString(c.raw)
+			s.addArg(c.args...)
 		}
 
 	}
@@ -147,22 +162,29 @@ func (s *Selector[T]) buildColumns() error {
 	return nil
 }
 
-func (s *Selector[T]) buildColumn(c string) error {
-	fd, ok := s.model.FieldMap[c]
+func (s *Selector[T]) buildColumn(c Column) error {
+	fd, ok := s.model.FieldMap[c.name]
 	if !ok {
-		return errs.NewErrUnknownField(c)
+		return errs.NewErrUnknownField(c.name)
 	}
 	s.sb.WriteByte('`')
 	s.sb.WriteString(fd.ColName)
 	s.sb.WriteByte('`')
+	if c.alias != "" {
+		s.sb.WriteString(" AS `")
+		s.sb.WriteString(c.alias)
+		s.sb.WriteByte('`')
+	}
 	return nil
 }
-func (s *Selector[T]) addArg(val any) *Selector[T] {
+func (s *Selector[T]) addArg(vals ...any) {
+	if len(vals) == 0 {
+		return
+	}
 	if s.args == nil {
 		s.args = make([]any, 0, 8)
 	}
-	s.args = append(s.args, val)
-	return s
+	s.args = append(s.args, vals...)
 }
 
 //	func (s *Selector[T]) Select(columns ...string) *Selector[T] {

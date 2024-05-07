@@ -2,14 +2,22 @@ package go_orm
 
 // Aggregate  聚合函数 AVG,SUM,COUNT,MAX,MIN
 type Aggregate struct {
-	fn  string
-	arg string
+	fn    string
+	arg   string
+	alias string
 }
 
 func (a Aggregate) selectable() {
 
 }
 
+func (a Aggregate) As(alias string) Aggregate {
+	return Aggregate{
+		fn:    a.fn,
+		arg:   a.arg,
+		alias: alias,
+	}
+}
 func Avg(col string) Aggregate {
 	return Aggregate{
 		fn:  "AVG",
