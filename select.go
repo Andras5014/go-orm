@@ -16,7 +16,7 @@ type Selector[T any] struct {
 	table   string
 	model   *model.Model
 	where   []Predicate
-	columns []string
+	columns []Selectable
 	sb      *strings.Builder
 	args    []any
 	db      *DB
@@ -40,17 +40,8 @@ func (s *Selector[T]) Build() (*Query, error) {
 	}
 	sb := s.sb
 	sb.WriteString("SELECT ")
-	if len(s.columns) > 0 {
-		for i, col := range s.columns {
-			if i > 0 {
-				sb.WriteByte(',')
-			}
-			sb.WriteString("`")
-			sb.WriteString(col)
-			sb.WriteString("`")
-		}
-	} else {
-		sb.WriteByte('*')
+	if err = s.buildColumns(); err != nil {
+		return nil, err
 	}
 	sb.WriteString(" FROM ")
 
@@ -59,9 +50,7 @@ func (s *Selector[T]) Build() (*Query, error) {
 		sb.WriteString(s.model.TableName)
 		sb.WriteByte('`')
 	} else {
-
 		sb.WriteString(s.table)
-
 	}
 
 	if len(s.where) > 0 {
@@ -119,15 +108,7 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 		}
 
 	case Column:
-
-		fd, ok := s.model.FieldMap[exp.name]
-		if !ok {
-			return errs.NewErrUnknownField(exp.name)
-		}
-		s.sb.WriteByte('`')
-		s.sb.WriteString(fd.ColName)
-		s.sb.WriteByte('`')
-
+		return s.buildColumn(exp.name)
 	case value:
 		s.addArg(exp.arg)
 		s.sb.WriteString("?")
@@ -136,7 +117,46 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 	}
 	return nil
 }
+func (s *Selector[T]) buildColumns() error {
+	if len(s.columns) == 0 {
+		s.sb.WriteByte('*')
+	}
 
+	for i, col := range s.columns {
+		if i > 0 {
+			s.sb.WriteByte(',')
+		}
+		switch c := col.(type) {
+		case Column:
+			err := s.buildColumn(c.name)
+			if err != nil {
+				return err
+			}
+		case Aggregate:
+			s.sb.WriteString(c.fn)
+			s.sb.WriteByte('(')
+			err := s.buildColumn(c.arg)
+			if err != nil {
+				return err
+			}
+			s.sb.WriteByte(')')
+		}
+
+	}
+
+	return nil
+}
+
+func (s *Selector[T]) buildColumn(c string) error {
+	fd, ok := s.model.FieldMap[c]
+	if !ok {
+		return errs.NewErrUnknownField(c)
+	}
+	s.sb.WriteByte('`')
+	s.sb.WriteString(fd.ColName)
+	s.sb.WriteByte('`')
+	return nil
+}
 func (s *Selector[T]) addArg(val any) *Selector[T] {
 	if s.args == nil {
 		s.args = make([]any, 0, 8)
@@ -144,7 +164,12 @@ func (s *Selector[T]) addArg(val any) *Selector[T] {
 	s.args = append(s.args, val)
 	return s
 }
-func (s *Selector[T]) Select(columns ...string) *Selector[T] {
+
+//	func (s *Selector[T]) Select(columns ...string) *Selector[T] {
+//		s.columns = columns
+//		return s
+//	}
+func (s *Selector[T]) Select(columns ...Selectable) *Selector[T] {
 	s.columns = columns
 	return s
 }

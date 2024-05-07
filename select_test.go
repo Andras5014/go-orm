@@ -182,7 +182,7 @@ func TestSelector_Select(t *testing.T) {
 	}{
 		{
 			name:    "select",
-			builder: NewSelector[TestModel](db).Select("first_name", "last_name"),
+			builder: NewSelector[TestModel](db).Select(C("FirstName"), C("LastName")),
 			wantQuery: &Query{
 				SQL: "SELECT `first_name`,`last_name` FROM `test_model`;",
 			},
@@ -192,6 +192,68 @@ func TestSelector_Select(t *testing.T) {
 			builder: NewSelector[TestModel](db).Select(),
 			wantQuery: &Query{
 				SQL: "SELECT * FROM `test_model`;",
+			},
+		},
+		{
+			name:    " invalid",
+			builder: NewSelector[TestModel](db).Select(C("invalid")),
+			wantErr: errs.NewErrUnknownField("invalid"),
+		},
+		{
+			name:    " avg",
+			builder: NewSelector[TestModel](db).Select(Avg("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT AVG(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name:    " max",
+			builder: NewSelector[TestModel](db).Select(Max("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT MAX(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name:    " min",
+			builder: NewSelector[TestModel](db).Select(Min("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT MIN(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name:    " count",
+			builder: NewSelector[TestModel](db).Select(Count("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT COUNT(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name:    " sum",
+			builder: NewSelector[TestModel](db).Select(Sum("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT SUM(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name:    "min invalid columns",
+			builder: NewSelector[TestModel](db).Select(Min("invalid")),
+			wantErr: errs.NewErrUnknownField("invalid"),
+		},
+		{
+			name:    "max invalid columns",
+			builder: NewSelector[TestModel](db).Select(Max("invalid")),
+			wantErr: errs.NewErrUnknownField("invalid"),
+		},
+		{
+			name:    "count invalid columns",
+			builder: NewSelector[TestModel](db).Select(Count("invalid")),
+			wantErr: errs.NewErrUnknownField("invalid"),
+		},
+		{
+			name:    "multiple aggregate",
+			builder: NewSelector[TestModel](db).Select(Avg("Age"), Max("Age"), Min("Age"), Count("Age"), Sum("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT AVG(`age`),MAX(`age`),MIN(`age`),COUNT(`age`),SUM(`age`) FROM `test_model`;",
 			},
 		},
 	}
