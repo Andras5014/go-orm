@@ -205,7 +205,7 @@ func TestSelector_Get(t *testing.T) {
 	}
 }
 func memoryDB(t *testing.T) *DB {
-	db, err := Open("sqlite3", "file:test.db?cache=shared&mode=memory")
+	db, err := Open("sqlite3", "file:test.db?cache=shared&mode=memory", DBWithDialect(DialectMySQL))
 	require.NoError(t, err)
 	return db
 }

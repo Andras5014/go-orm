@@ -3,8 +3,6 @@ package go_orm
 import (
 	"context"
 	"github.com/Andras5014/go-orm/internal/errs"
-	"github.com/Andras5014/go-orm/model"
-	"strings"
 )
 
 // Selectable 是一个标记接口
@@ -13,19 +11,20 @@ type Selectable interface {
 	selectable()
 }
 type Selector[T any] struct {
+	builder
 	table   string
-	model   *model.Model
 	where   []Predicate
 	columns []Selectable
-	sb      *strings.Builder
-	args    []any
 	db      *DB
 	//r *registry
 }
 
 func NewSelector[T any](db *DB) *Selector[T] {
 	return &Selector[T]{
-		sb: &strings.Builder{},
+		builder: builder{
+			dialect: db.dialect,
+			quoter:  db.dialect.quoter(),
+		},
 		db: db,
 	}
 }
@@ -38,23 +37,21 @@ func (s *Selector[T]) Build() (*Query, error) {
 	if err != nil {
 		return nil, err
 	}
-	sb := s.sb
-	sb.WriteString("SELECT ")
+
+	s.sb.WriteString("SELECT ")
 	if err = s.buildColumns(); err != nil {
 		return nil, err
 	}
-	sb.WriteString(" FROM ")
+	s.sb.WriteString(" FROM ")
 
 	if s.table == "" {
-		sb.WriteByte('`')
-		sb.WriteString(s.model.TableName)
-		sb.WriteByte('`')
+		s.quote(s.model.TableName)
 	} else {
-		sb.WriteString(s.table)
+		s.sb.WriteString(s.table)
 	}
 
 	if len(s.where) > 0 {
-		sb.WriteString(" WHERE ")
+		s.sb.WriteString(" WHERE ")
 		p := s.where[0]
 		for i := 1; i < len(s.where); i++ {
 			p = p.And(s.where[i])
@@ -65,9 +62,9 @@ func (s *Selector[T]) Build() (*Query, error) {
 		}
 
 	}
-	sb.WriteByte(';')
+	s.sb.WriteByte(';')
 	return &Query{
-		SQL:  sb.String(),
+		SQL:  s.sb.String(),
 		Args: s.args,
 	}, nil
 
@@ -167,24 +164,13 @@ func (s *Selector[T]) buildColumn(c Column) error {
 	if !ok {
 		return errs.NewErrUnknownField(c.name)
 	}
-	s.sb.WriteByte('`')
-	s.sb.WriteString(fd.ColName)
-	s.sb.WriteByte('`')
+	s.quote(fd.ColName)
 	if c.alias != "" {
 		s.sb.WriteString(" AS `")
 		s.sb.WriteString(c.alias)
 		s.sb.WriteByte('`')
 	}
 	return nil
-}
-func (s *Selector[T]) addArg(vals ...any) {
-	if len(vals) == 0 {
-		return
-	}
-	if s.args == nil {
-		s.args = make([]any, 0, 8)
-	}
-	s.args = append(s.args, vals...)
 }
 
 //	func (s *Selector[T]) Select(columns ...string) *Selector[T] {
