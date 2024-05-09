@@ -25,3 +25,6 @@ func NewErrInvalidTagContent(pair string) error {
 func NewErrUnknownColumn(c string) error {
 	return fmt.Errorf("orm: unknown column: %s", c)
 }
+func NewErrUnsupportedAssignable(assign any) error {
+	return fmt.Errorf("orm: unsupported assignable: %s", assign)
+}

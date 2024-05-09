@@ -61,6 +61,56 @@ func TestInserter_Build(t *testing.T) {
 			q:       NewInserter[TestModel](db).Values(),
 			wantErr: errs.ErrInsertZeroRow,
 		},
+		{
+			// 插入多行部分列
+			name: "multiple row with partial columns",
+			q: NewInserter[TestModel](db).Columns("Id", "FirstName").Values(&TestModel{
+				Id:        1,
+				FirstName: "a",
+			}, &TestModel{
+				Id:        2,
+				FirstName: "b",
+			}),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model` (`id`,`first_name`) VALUES (?,?),(?,?);",
+				Args: []any{int64(1), "a",
+					int64(2), "b"},
+			},
+		},
+		{
+			name: "upsert-update value",
+			q: NewInserter[TestModel](db).Values(&TestModel{
+				Id:        1,
+				FirstName: "a",
+				Age:       18,
+				LastName: &sql.NullString{
+					String: "ndras",
+					Valid:  true,
+				},
+			}).onDuplicateKey().Update(Assign("FirstName", "J"), Assign("Age", 19)),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model` (`id`,`first_name`,`age`,`last_name`) VALUES (?,?,?,?)" +
+					" ON DUPLICATE KEY UPDATE `first_name`=?,`age`=?;",
+				Args: []any{int64(1), "a", int8(18), &sql.NullString{String: "ndras", Valid: true}, "J", 19},
+			},
+		},
+		{
+
+			name: "upsert -update column",
+			q: NewInserter[TestModel](db).Columns("Id", "FirstName").Values(&TestModel{
+				Id:        1,
+				FirstName: "a",
+			}, &TestModel{
+				Id:        2,
+				FirstName: "b",
+			}).onDuplicateKey().Update(C("FirstName"), C("Age")),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model` (`id`,`first_name`) VALUES (?,?),(?,?)" +
+					" ON DUPLICATE KEY UPDATE `first_name`=VALUES(`first_name`),`age`=VALUES(`age`);",
+				Args: []any{int64(1), "a",
+					int64(2), "b"},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

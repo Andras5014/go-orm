@@ -16,6 +16,9 @@ func (c Column) Eq(arg any) Predicate {
 		right: valueOf(arg),
 	}
 }
+func (c Column) assign() {
+
+}
 func (c Column) As(alias string) Column {
 	return Column{
 		name:  c.name,
