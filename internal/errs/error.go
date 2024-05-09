@@ -6,8 +6,9 @@ import (
 )
 
 var (
-	ErrPointerOnly = errors.New("orm: only support one pointer")
-	ErrNoRows      = errors.New("orm: no rows in result set")
+	ErrPointerOnly   = errors.New("orm: only support one pointer")
+	ErrNoRows        = errors.New("orm: no rows in result set")
+	ErrInsertZeroRow = errors.New("orm: insert zero row")
 )
 
 func NewErrUnsupportedExpr(expr any) error {
