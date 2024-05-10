@@ -7,8 +7,62 @@ import (
 	"testing"
 )
 
+func TestInserter_SQLite_upsert(t *testing.T) {
+	db := memoryDB(t, DBWithDialect(DialectSQLite))
+	testCases := []struct {
+		name      string
+		q         QueryBuilder
+		wantErr   error
+		wantQuery *Query
+	}{
+		{
+			name: "upsert-update value",
+			q: NewInserter[TestModel](db).Values(&TestModel{
+				Id:        1,
+				FirstName: "a",
+				Age:       18,
+				LastName: &sql.NullString{
+					String: "ndras",
+					Valid:  true,
+				},
+			}).onDuplicateKey().ConflictColumns("FirstName", "Age").Update(Assign("FirstName", "J"), Assign("Age", 19)),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model` (`id`,`first_name`,`age`,`last_name`) VALUES (?,?,?,?)" +
+					" ON CONFLICT (`first_name`,`age`) DO UPDATE SET `first_name`=?,`age`=?;",
+				Args: []any{int64(1), "a", int8(18), &sql.NullString{String: "ndras", Valid: true}, "J", 19},
+			},
+		},
+		{
+
+			name: "upsert -update column",
+			q: NewInserter[TestModel](db).Columns("Id", "FirstName").Values(&TestModel{
+				Id:        1,
+				FirstName: "a",
+			}, &TestModel{
+				Id:        2,
+				FirstName: "b",
+			}).onDuplicateKey().ConflictColumns("FirstName", "Age").Update(C("FirstName"), C("Age")),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model` (`id`,`first_name`) VALUES (?,?),(?,?)" +
+					" ON CONFLICT (`first_name`,`age`) DO UPDATE SET `first_name`=EXCLUDED.`first_name`,`age`=EXCLUDED.`age`;",
+				Args: []any{int64(1), "a",
+					int64(2), "b"},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			q, err := tc.q.Build()
+			assert.Equal(t, tc.wantErr, err)
+			if err != nil {
+				return
+			}
+			assert.Equal(t, tc.wantQuery, q)
+		})
+	}
+}
 func TestInserter_Build(t *testing.T) {
-	db := memoryDB(t)
+	db := memoryDB(t, DBWithDialect(DialectMySQL))
 	testCases := []struct {
 		name      string
 		q         QueryBuilder

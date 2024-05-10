@@ -6,16 +6,24 @@ import (
 	"reflect"
 )
 
-type OnDuplicateKeyBuilder[T any] struct {
-	i *Inserter[T]
+type UpsertBuilder[T any] struct {
+	i               *Inserter[T]
+	conflictColumns []string
 }
-type OnDuplicateKey struct {
-	assigns []Assignable
+type Upsert struct {
+	assigns         []Assignable
+	conflictColumns []string
 }
 
-func (o OnDuplicateKeyBuilder[T]) Update(assigns ...Assignable) *Inserter[T] {
-	o.i.OnDuplicateKey = &OnDuplicateKey{
-		assigns: assigns,
+// ConflictColumns 中间方法
+func (o *UpsertBuilder[T]) ConflictColumns(cols ...string) *UpsertBuilder[T] {
+	o.conflictColumns = cols
+	return o
+}
+func (o *UpsertBuilder[T]) Update(assigns ...Assignable) *Inserter[T] {
+	o.i.OnDuplicateKey = &Upsert{
+		assigns:         assigns,
+		conflictColumns: o.conflictColumns,
 	}
 	return o.i
 }
@@ -28,7 +36,7 @@ type Inserter[T any] struct {
 	values         []*T
 	columns        []string
 	db             *DB
-	OnDuplicateKey *OnDuplicateKey
+	OnDuplicateKey *Upsert
 }
 
 func NewInserter[T any](db *DB) *Inserter[T] {
@@ -41,8 +49,8 @@ func NewInserter[T any](db *DB) *Inserter[T] {
 	}
 }
 
-func (i *Inserter[T]) onDuplicateKey() *OnDuplicateKeyBuilder[T] {
-	return &OnDuplicateKeyBuilder[T]{
+func (i *Inserter[T]) onDuplicateKey() *UpsertBuilder[T] {
+	return &UpsertBuilder[T]{
 		i: i,
 	}
 }
@@ -111,7 +119,7 @@ func (i *Inserter[T]) Build() (*Query, error) {
 		i.sb.WriteString(")")
 	}
 	if i.OnDuplicateKey != nil {
-		err := i.dialect.buildOnDuplicateKey(&i.builder, i.OnDuplicateKey)
+		err := i.dialect.buildUpsert(&i.builder, i.OnDuplicateKey)
 		if err != nil {
 			return nil, err
 		}

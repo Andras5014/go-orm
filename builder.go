@@ -22,7 +22,7 @@ func (b *builder) quote(name string) {
 }
 
 func (b *builder) buildColumn(name string) error {
-	fd, ok := b.model.ColumnMap[name]
+	fd, ok := b.model.FieldMap[name]
 	if !ok {
 		return errs.NewErrUnknownColumn(name)
 	}
