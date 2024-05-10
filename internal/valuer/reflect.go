@@ -10,18 +10,26 @@ import (
 type reflectValue struct {
 	model *go_orm.Model
 	// T的指针
-	val any
+	val reflect.Value
 }
 
 var _ Creator = NewReflectValue
 
 func NewReflectValue(model *go_orm.Model, val any) Value {
 	return reflectValue{
-		val:   val,
+		val:   reflect.ValueOf(val),
 		model: model,
 	}
 }
+func (r reflectValue) Field(name string) (any, error) {
+	// 检测name是否合法
+	//_, ok := r.val.Type().FieldByName(name)
+	//if !ok {
+	//	return nil, errs.NewErrUnknownField(name)
+	//}
 
+	return r.val.FieldByName(name).Interface(), nil
+}
 func (r reflectValue) SetColumns(rows *sql.Rows) error {
 	// 拿到 select 出来的列
 	cs, err := rows.Columns()
@@ -45,7 +53,7 @@ func (r reflectValue) SetColumns(rows *sql.Rows) error {
 	if err != nil {
 		return err
 	}
-	tpValueElem := reflect.ValueOf(r.val).Elem()
+	tpValueElem := r.val
 	for i, c := range cs {
 		fd, ok := r.model.ColumnMap[c]
 		if !ok {

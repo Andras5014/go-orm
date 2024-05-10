@@ -1,9 +1,9 @@
 package go_orm
 
 import (
+	"context"
 	"github.com/Andras5014/go-orm/internal/errs"
 	"github.com/Andras5014/go-orm/model"
-	"reflect"
 )
 
 type UpsertBuilder[T any] struct {
@@ -103,17 +103,21 @@ func (i *Inserter[T]) Build() (*Query, error) {
 	i.sb.WriteString(" VALUES ")
 
 	i.args = make([]any, 0, len(i.values)*len(fields))
-	for index, val := range i.values {
+	for index, v := range i.values {
 		if index > 0 {
 			i.sb.WriteString(",")
 		}
 		i.sb.WriteString("(")
+		val := i.db.creator(i.model, v)
 		for idx, field := range fields {
 			if idx > 0 {
 				i.sb.WriteString(",")
 			}
 			i.sb.WriteString("?")
-			arg := reflect.ValueOf(val).Elem().FieldByName(field.GoName).Interface()
+			arg, err := val.Field(field.GoName)
+			if err != nil {
+				return nil, err
+			}
 			i.addArg(arg)
 		}
 		i.sb.WriteString(")")
@@ -129,4 +133,18 @@ func (i *Inserter[T]) Build() (*Query, error) {
 		SQL:  i.sb.String(),
 		Args: i.args,
 	}, nil
+}
+
+func (i Inserter[T]) Exec(ctx context.Context) Result {
+	q, err := i.Build()
+	if err != nil {
+		return Result{
+			err: err,
+		}
+	}
+	res, err := i.db.db.ExecContext(ctx, q.SQL, q.Args...)
+	return Result{
+		res: res,
+		err: err,
+	}
 }

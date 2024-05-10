@@ -23,7 +23,15 @@ func NewUnsafeValue(model *go_orm.Model, val any) Value {
 		address: address,
 	}
 }
-
+func (u unsafeValue) Field(name string) (any, error) {
+	fd, ok := u.model.FieldMap[name]
+	if !ok {
+		return nil, errs.NewErrUnknownColumn(name)
+	}
+	fdAddress := unsafe.Pointer(uintptr(u.address) + fd.Offset)
+	val := reflect.NewAt(fd.Typ, fdAddress)
+	return val.Elem().Interface(), nil
+}
 func (u unsafeValue) SetColumns(rows *sql.Rows) error {
 	// 拿到 select 出来的列
 	cs, err := rows.Columns()

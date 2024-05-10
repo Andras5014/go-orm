@@ -10,12 +10,19 @@ type Aggregate struct {
 func (a Aggregate) selectable() {
 
 }
-
+func (a Aggregate) expr() {}
 func (a Aggregate) As(alias string) Aggregate {
 	return Aggregate{
 		fn:    a.fn,
 		arg:   a.arg,
 		alias: alias,
+	}
+}
+func (a Aggregate) Eq(arg any) Predicate {
+	return Predicate{
+		left:  a,
+		op:    opEq,
+		right: valueOf(arg),
 	}
 }
 func Avg(col string) Aggregate {

@@ -12,10 +12,15 @@ type Selectable interface {
 }
 type Selector[T any] struct {
 	builder
-	table   string
-	where   []Predicate
-	columns []Selectable
-	db      *DB
+	table    string
+	where    []Predicate
+	having   []Predicate
+	columns  []Selectable
+	db       *DB
+	groupBys []Column
+	orderBys []OrderBy
+	offset   int
+	limit    int
 	//r *registry
 }
 
@@ -52,15 +57,43 @@ func (s *Selector[T]) Build() (*Query, error) {
 
 	if len(s.where) > 0 {
 		s.sb.WriteString(" WHERE ")
-		p := s.where[0]
-		for i := 1; i < len(s.where); i++ {
-			p = p.And(s.where[i])
-		}
-
-		if err := s.buildExpression(p); err != nil {
+		if err = s.buildPredicates(s.where); err != nil {
 			return nil, err
 		}
-
+	}
+	if len(s.groupBys) > 0 {
+		s.sb.WriteString(" GROUP BY ")
+		for i, column := range s.groupBys {
+			if i > 0 {
+				s.sb.WriteString(", ")
+			}
+			if err := s.buildColumn(column); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if len(s.having) > 0 {
+		s.sb.WriteString(" HAVING ")
+		if err = s.buildPredicates(s.having); err != nil {
+			return nil, err
+		}
+	}
+	// limit x,y x偏移量y目标量
+	// 从偏移量x往后取y条数据
+	// limit y offset x
+	if s.limit > 0 {
+		s.sb.WriteString(" LIMIT ?")
+		s.addArg(s.limit)
+	}
+	if s.offset > 0 {
+		s.sb.WriteString(" OFFSET ?")
+		s.addArg(s.offset)
+	}
+	if len(s.orderBys) > 0 {
+		s.sb.WriteString(" ORDER BY ")
+		if err := s.buildOrderBy(); err != nil {
+			return nil, err
+		}
 	}
 	s.sb.WriteByte(';')
 	return &Query{
@@ -116,6 +149,16 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 	case RawExpr:
 		s.sb.WriteString(exp.raw)
 		s.addArg(exp.args...)
+	case Aggregate:
+		s.sb.WriteString(exp.fn)
+		s.sb.WriteString("(`")
+		fd, ok := s.model.FieldMap[exp.arg]
+		if !ok {
+			return errs.NewErrUnknownColumn(exp.arg)
+		}
+		s.sb.WriteString(fd.ColName)
+		s.sb.WriteString("`)")
+
 	default:
 		return errs.NewErrUnsupportedExpr(exp)
 	}
@@ -137,17 +180,9 @@ func (s *Selector[T]) buildColumns() error {
 				return err
 			}
 		case Aggregate:
-			s.sb.WriteString(c.fn)
-			s.sb.WriteByte('(')
-			err := s.buildColumn(Column{name: c.arg})
+			err := s.buildAggregate(c, true)
 			if err != nil {
 				return err
-			}
-			s.sb.WriteByte(')')
-			if c.alias != "" {
-				s.sb.WriteString(" AS `")
-				s.sb.WriteString(c.alias)
-				s.sb.WriteByte('`')
 			}
 		case RawExpr:
 			s.sb.WriteString(c.raw)
@@ -158,7 +193,28 @@ func (s *Selector[T]) buildColumns() error {
 
 	return nil
 }
-
+func (s *Selector[T]) buildPredicates(ps []Predicate) error {
+	p := ps[0]
+	for i := 1; i < len(ps); i++ {
+		p = p.And(ps[i])
+	}
+	return s.buildExpression(p)
+}
+func (s *Selector[T]) buildAggregate(a Aggregate, useAlias bool) error {
+	s.sb.WriteString(a.fn)
+	s.sb.WriteByte('(')
+	err := s.buildColumn(Column{name: a.arg})
+	if err != nil {
+		return err
+	}
+	s.sb.WriteByte(')')
+	if a.alias != "" {
+		s.sb.WriteString(" AS `")
+		s.sb.WriteString(a.alias)
+		s.sb.WriteByte('`')
+	}
+	return nil
+}
 func (s *Selector[T]) buildColumn(c Column) error {
 	fd, ok := s.model.FieldMap[c.name]
 	if !ok {
@@ -169,6 +225,21 @@ func (s *Selector[T]) buildColumn(c Column) error {
 		s.sb.WriteString(" AS `")
 		s.sb.WriteString(c.alias)
 		s.sb.WriteByte('`')
+	}
+	return nil
+}
+func (s *Selector[T]) buildOrderBy() error {
+
+	for i, ob := range s.orderBys {
+		if i > 0 {
+			s.sb.WriteByte(',')
+		}
+		err := s.buildColumn(ob.col)
+		if err != nil {
+			return err
+		}
+		s.sb.WriteByte(' ')
+		s.sb.WriteString(ob.order)
 	}
 	return nil
 }
@@ -190,6 +261,27 @@ func (s *Selector[T]) Where(ps ...Predicate) *Selector[T] {
 	s.where = ps
 	return s
 }
+func (s *Selector[T]) Having(ps ...Predicate) *Selector[T] {
+	s.having = ps
+	return s
+}
+func (s *Selector[T]) GroupBy(cols ...Column) *Selector[T] {
+	s.groupBys = cols
+	return s
+}
+func (s *Selector[T]) OrderBy(orderBys ...OrderBy) *Selector[T] {
+	s.orderBys = orderBys
+	return s
+}
+func (s *Selector[T]) Offset(offset int) *Selector[T] {
+	s.offset = offset
+	return s
+}
+func (s *Selector[T]) Limit(limit int) *Selector[T] {
+	s.limit = limit
+	return s
+}
+
 func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	q, err := s.Build()
 	// 构造sql失败
@@ -255,4 +347,22 @@ func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
 		res = append(res, tp)
 	}
 	return res, nil
+}
+
+type OrderBy struct {
+	col   Column
+	order string
+}
+
+func Asc(col string) OrderBy {
+	return OrderBy{
+		col:   Column{name: col},
+		order: "ASC",
+	}
+}
+func Desc(col string) OrderBy {
+	return OrderBy{
+		col:   Column{name: col},
+		order: "DESC",
+	}
 }

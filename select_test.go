@@ -121,6 +121,63 @@ func TestSelector_Build(t *testing.T) {
 				Args: []any{"Tom"},
 			},
 		},
+		{
+			name:    "multiple",
+			builder: NewSelector[TestModel](db).GroupBy(C("FirstName")),
+			wantQuery: &Query{
+				SQL: "SELECT * FROM `test_model` GROUP BY `first_name`;",
+			},
+		},
+		{
+			name:    "invalid column",
+			builder: NewSelector[TestModel](db).GroupBy(C("invalid")),
+			wantErr: errs.NewErrUnknownField("invalid"),
+		},
+		{
+			name:    "none",
+			builder: NewSelector[TestModel](db).GroupBy(C("FirstName")).Having(),
+			wantQuery: &Query{
+				SQL: "SELECT * FROM `test_model` GROUP BY `first_name`;",
+			},
+		},
+		{
+			name:    "having",
+			builder: NewSelector[TestModel](db).GroupBy(C("FirstName")).Having(C("FirstName").Eq("Tom")),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` GROUP BY `first_name` HAVING `first_name` = ?;",
+				Args: []any{"Tom"},
+			},
+		}, {
+			name:    "offset only",
+			builder: NewSelector[TestModel](db).Offset(10),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` OFFSET ?;",
+				Args: []any{10},
+			},
+		},
+		{
+			name:    "limit only",
+			builder: NewSelector[TestModel](db).Limit(10),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` LIMIT ?;",
+				Args: []any{10},
+			},
+		},
+		{
+			name:    "offset and limit",
+			builder: NewSelector[TestModel](db).Offset(10).Limit(10),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` LIMIT ? OFFSET ?;",
+				Args: []any{10, 10},
+			},
+		}, {
+			name:    "order by",
+			builder: NewSelector[TestModel](db).OrderBy(Desc("FirstName")),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` ORDER BY `first_name` DESC;",
+				Args: nil,
+			},
+		},
 	}
 
 	for _, tc := range testCases {
