@@ -2,17 +2,14 @@ package go_orm
 
 import (
 	"github.com/Andras5014/go-orm/internal/errs"
-	"github.com/Andras5014/go-orm/model"
 	"strings"
 )
 
 type builder struct {
-	sb    strings.Builder
-	args  []any
-	model *model.Model
-
-	dialect Dialect
-	quoter  byte
+	core
+	sb     strings.Builder
+	args   []any
+	quoter byte
 }
 
 func (b *builder) quote(name string) {

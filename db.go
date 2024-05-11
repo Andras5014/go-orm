@@ -1,6 +1,7 @@
 package go_orm
 
 import (
+	"context"
 	"database/sql"
 	"github.com/Andras5014/go-orm/internal/valuer"
 	"github.com/Andras5014/go-orm/model"
@@ -10,10 +11,8 @@ type DBOption func(db *DB)
 
 // DB is the sqlDB wrapper
 type DB struct {
-	r       model.Registry
-	db      *sql.DB
-	creator valuer.Creator
-	dialect Dialect
+	core
+	db *sql.DB
 }
 
 func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {
@@ -26,10 +25,12 @@ func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {
 }
 func OpenDB(db *sql.DB, opts ...DBOption) (*DB, error) {
 	res := &DB{
-		r:       model.NewRegistry(),
-		db:      db,
-		creator: valuer.NewUnsafeValue,
-		dialect: DialectMySQL,
+		core: core{
+			r:       model.NewRegistry(),
+			dialect: DialectMySQL,
+			creator: valuer.NewUnsafeValue,
+		},
+		db: db,
 	}
 	for _, opt := range opts {
 		opt(res)
@@ -58,4 +59,24 @@ func MustOpenDB(driver string, dataSourceName string, opts ...DBOption) *DB {
 		panic(err)
 	}
 	return db
+}
+
+func (d *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) {
+	tx, err := d.db.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	return &Tx{
+		tx: tx,
+	}, nil
+}
+func (d *DB) getCore() core {
+	return d.core
+}
+func (d *DB) queryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	return d.db.QueryContext(ctx, query, args...)
+}
+
+func (d *DB) execContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return d.db.ExecContext(ctx, query, args...)
 }

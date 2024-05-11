@@ -16,28 +16,30 @@ type Selector[T any] struct {
 	where    []Predicate
 	having   []Predicate
 	columns  []Selectable
-	db       *DB
 	groupBys []Column
 	orderBys []OrderBy
 	offset   int
 	limit    int
+
+	sess Session
 	//r *registry
 }
 
-func NewSelector[T any](db *DB) *Selector[T] {
+func NewSelector[T any](sess Session) *Selector[T] {
+	c := sess.getCore()
 	return &Selector[T]{
 		builder: builder{
-			dialect: db.dialect,
-			quoter:  db.dialect.quoter(),
+			core:   c,
+			quoter: c.dialect.quoter(),
 		},
-		db: db,
+		sess: sess,
 	}
 }
 func (s *Selector[T]) Build() (*Query, error) {
 
 	var err error
 
-	s.model, err = s.db.r.Register(new(T))
+	s.model, err = s.r.Register(new(T))
 
 	if err != nil {
 		return nil, err
@@ -289,8 +291,7 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 		return nil, err
 	}
 	// 发起查询, 处理结果集
-	db := s.db.db
-	rows, err := db.QueryContext(ctx, q.SQL, q.Args...)
+	rows, err := s.sess.queryContext(ctx, q.SQL, q.Args...)
 	// 查询错误
 	if err != nil {
 		return nil, err
@@ -300,7 +301,7 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	}
 
 	tp := new(T)
-	val := s.db.creator(s.model, tp)
+	val := s.creator(s.model, tp)
 	err = val.SetColumns(rows)
 	return tp, err
 
@@ -331,15 +332,14 @@ func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
 		return nil, err
 	}
 	// 执行查询, 处理结果集
-	db := s.db.db
-	rows, err := db.QueryContext(ctx, q.SQL, q.Args...)
+	rows, err := s.sess.queryContext(ctx, q.SQL, q.Args...)
 	if err != nil {
 		return nil, err
 	}
 	var res []*T
 	for rows.Next() {
 		tp := new(T)
-		val := s.db.creator(s.model, tp)
+		val := s.creator(s.model, tp)
 		err = val.SetColumns(rows)
 		if err != nil {
 			return nil, err
