@@ -11,6 +11,10 @@ var (
 	ErrInsertZeroRow = errors.New("orm: insert zero row")
 )
 
+// NewErrFailedToRollback bizErr 是业务错误，rbErr 是回滚错误，panicked 是是否在回滚时发生 panic
+func NewErrFailedToRollback(bizErr error, rbErr error, panicked bool) error {
+	return fmt.Errorf("orm: failed to rollback: %w, %w, %t", bizErr, rbErr, panicked)
+}
 func NewErrUnsupportedExpr(expr any) error {
 	return fmt.Errorf("orm: unsupported expression: %s", expr)
 }

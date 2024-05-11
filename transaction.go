@@ -3,6 +3,7 @@ package go_orm
 import (
 	"context"
 	"database/sql"
+	"errors"
 )
 
 var (
@@ -19,6 +20,8 @@ type Session interface {
 type Tx struct {
 	tx *sql.Tx
 	db *DB
+	// 事务是否已经提交
+	done bool
 }
 
 func (t *Tx) getCore() core {
@@ -33,8 +36,18 @@ func (t *Tx) execContext(ctx context.Context, query string, args ...any) (sql.Re
 }
 
 func (t *Tx) Commit() error {
+	t.done = true
 	return t.tx.Commit()
 }
 func (t *Tx) Rollback() error {
+	t.done = true
 	return t.tx.Rollback()
+}
+func (t *Tx) RollbackIfNotCommit() error {
+	t.done = true
+	err := t.tx.Rollback()
+	if errors.Is(err, sql.ErrTxDone) {
+		return nil
+	}
+	return nil
 }

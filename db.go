@@ -3,6 +3,7 @@ package go_orm
 import (
 	"context"
 	"database/sql"
+	"github.com/Andras5014/go-orm/internal/errs"
 	"github.com/Andras5014/go-orm/internal/valuer"
 	"github.com/Andras5014/go-orm/model"
 )
@@ -69,6 +70,53 @@ func (d *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) {
 	return &Tx{
 		tx: tx,
 	}, nil
+}
+
+type txKey struct{}
+
+// BeginTxV2 事务扩散
+func (d *DB) BeginTxV2(ctx context.Context, opts *sql.TxOptions) (context.Context, *Tx, error) {
+	val := ctx.Value(txKey{})
+	tx, ok := val.(*Tx)
+	if ok && !tx.done {
+		return ctx, tx, nil
+	}
+	tx, err := d.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	return context.WithValue(ctx, txKey{}, tx), tx, nil
+}
+
+// BeginTxV3 要求前面一定要开启事务
+//
+//	func (d *DB) BeginTxV3(ctx context.Context, opts *sql.TxOptions) (*Tx, error) {
+//		val := ctx.Value(txKey{})
+//		tx, ok := val.(*Tx)
+//		if ok {
+//			return tx, nil
+//		}
+//
+//		return nil, errors.New("no tx ")
+//	}
+func (d *DB) DoTx(ctx context.Context, fn func(ctx context.Context, tx *Tx) error, opts *sql.TxOptions) (err error) {
+	tx, err := d.BeginTx(ctx, opts)
+	if err != nil {
+		return err
+	}
+	panicked := true
+
+	defer func() {
+		if panicked || err != nil {
+			e := tx.Rollback()
+			err = errs.NewErrFailedToRollback(err, e, panicked)
+		} else {
+			err = tx.Commit()
+		}
+	}()
+	err = fn(ctx, tx)
+	panicked = false
+	return nil
 }
 func (d *DB) getCore() core {
 	return d.core
