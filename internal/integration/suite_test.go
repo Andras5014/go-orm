@@ -16,5 +16,10 @@ type Suite struct {
 func (s *Suite) SetupSuite() {
 	db, err := go_orm.Open(s.driver, s.dsn)
 	require.NoError(s.T(), err)
+	err = db.Wait()
+	if err != nil {
+		return
+	}
+
 	s.db = db
 }

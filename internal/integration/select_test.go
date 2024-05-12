@@ -1,3 +1,5 @@
+//go:build e2e
+
 package integration
 
 import (
@@ -22,6 +24,9 @@ func TestMySQlSelect(t *testing.T) {
 			driver: "mysql",
 		},
 	})
+}
+func (i *InsertSuite) TearDownSuite() {
+	go_orm.RawQuery[test.SimpleStruct](i.db, "truncate table `simple_struct`").Exec(context.Background())
 }
 func (s *SelectSuite) SetupSuite() {
 	s.Suite.SetupSuite()

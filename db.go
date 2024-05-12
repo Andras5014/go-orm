@@ -3,9 +3,12 @@ package go_orm
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"github.com/Andras5014/go-orm/internal/errs"
 	"github.com/Andras5014/go-orm/internal/valuer"
 	"github.com/Andras5014/go-orm/model"
+	"log"
 )
 
 type DBOption func(db *DB)
@@ -92,7 +95,7 @@ func (d *DB) BeginTxV2(ctx context.Context, opts *sql.TxOptions) (context.Contex
 	return context.WithValue(ctx, txKey{}, tx), tx, nil
 }
 
-// BeginTxV3 要求前面一定要开启事务
+// DoTx BeginTxV3 要求前面一定要开启事务
 //
 //	func (d *DB) BeginTxV3(ctx context.Context, opts *sql.TxOptions) (*Tx, error) {
 //		val := ctx.Value(txKey{})
@@ -131,4 +134,12 @@ func (d *DB) queryContext(ctx context.Context, query string, args ...any) (*sql.
 
 func (d *DB) execContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	return d.db.ExecContext(ctx, query, args...)
+}
+func (d *DB) Wait() error {
+	err := d.db.Ping()
+	for errors.Is(err, driver.ErrBadConn) {
+		log.Println("数据库启动中")
+		err = d.db.Ping()
+	}
+	return nil
 }

@@ -290,15 +290,10 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	root := s.getHandler
-	for i := len(s.middlewares) - 1; i >= 0; i-- {
-		root = s.middlewares[i](root)
-	}
-	res := root(ctx, &QueryContext{
+	res := get[T](ctx, s.sess, s.core, &QueryContext{
+		Model:   s.model,
 		Type:    "SELECT",
 		Builder: s,
-		Model:   s.model,
 	})
 	if res.Result != nil {
 		return res.Result.(*T), res.Err
@@ -306,38 +301,36 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	return nil, res.Err
 }
 
-var _ Handler = (&Selector[any]{}).getHandler
-
-func (s *Selector[T]) getHandler(ctx context.Context, qc *QueryContext) *QueryResult {
-	q, err := s.Build()
-	// 构造sql失败
-	if err != nil {
-		return &QueryResult{
-			Err: err,
-		}
-	}
-	// 发起查询, 处理结果集
-	rows, err := s.sess.queryContext(ctx, q.SQL, q.Args...)
-	// 查询错误
-	if err != nil {
-		return &QueryResult{
-			Err: err,
-		}
-	}
-	if !rows.Next() {
-		return &QueryResult{
-			Err: ErrNoRows,
-		}
-	}
-
-	tp := new(T)
-	val := s.creator(s.model, tp)
-	err = val.SetColumns(rows)
-	return &QueryResult{
-		Err:    err,
-		Result: tp,
-	}
-}
+//func getHandler[T any](ctx context.Context, sess Session, c core, qc *QueryContext) *QueryResult {
+//	q, err := qc.Builder.Build()
+//	// 构造sql失败
+//	if err != nil {
+//		return &QueryResult{
+//			Err: err,
+//		}
+//	}
+//	// 发起查询, 处理结果集
+//	rows, err := sess.queryContext(ctx, q.SQL, q.Args...)
+//	// 查询错误
+//	if err != nil {
+//		return &QueryResult{
+//			Err: err,
+//		}
+//	}
+//	if !rows.Next() {
+//		return &QueryResult{
+//			Err: ErrNoRows,
+//		}
+//	}
+//
+//	tp := new(T)
+//	val := c.creator(c.model, tp)
+//	err = val.SetColumns(rows)
+//	return &QueryResult{
+//		Err:    err,
+//		Result: tp,
+//	}
+//}
 
 //func (s *Selector[T]) GetV1(ctx context.Context) (*T, error) {
 //	q, err := s.Build()
