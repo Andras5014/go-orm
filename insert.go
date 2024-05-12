@@ -2,6 +2,7 @@ package go_orm
 
 import (
 	"context"
+	"database/sql"
 	"github.com/Andras5014/go-orm/internal/errs"
 	"github.com/Andras5014/go-orm/model"
 )
@@ -72,20 +73,23 @@ func (i *Inserter[T]) Build() (*Query, error) {
 	}
 
 	i.sb.WriteString("INSERT INTO ")
-	m, err := i.r.Get(i.values[0])
-	i.model = m
-	if err != nil {
-		return nil, err
+	if i.model == nil {
+		m, err := i.r.Get(i.values[0])
+		i.model = m
+		if err != nil {
+			return nil, err
+		}
 	}
-	i.quote(m.TableName)
+
+	i.quote(i.model.TableName)
 	// 指定列的顺序
 	i.sb.WriteString(" (")
 
-	fields := m.Fields
+	fields := i.model.Fields
 	if len(i.columns) > 0 {
 		fields = make([]*model.Field, 0, len(i.columns))
 		for _, fd := range i.columns {
-			fdMeta, ok := m.FieldMap[fd]
+			fdMeta, ok := i.model.FieldMap[fd]
 			if !ok {
 				return nil, errs.NewErrUnknownField(fd)
 			}
@@ -136,16 +140,50 @@ func (i *Inserter[T]) Build() (*Query, error) {
 	}, nil
 }
 
-func (i Inserter[T]) Exec(ctx context.Context) Result {
-	q, err := i.Build()
+func (i *Inserter[T]) Exec(ctx context.Context) Result {
+	var err error
+	i.model, err = i.r.Get(i.values[0])
 	if err != nil {
 		return Result{
 			err: err,
 		}
 	}
-	res, err := i.sess.execContext(ctx, q.SQL, q.Args...)
+	root := i.execHandler
+	for j := len(i.middlewares) - 1; j >= 0; j-- {
+		root = i.middlewares[j](root)
+	}
+	res := root(ctx, &QueryContext{
+		Type:    "INSERT",
+		Builder: i,
+		Model:   i.model,
+	})
+	if res.Result != nil {
+		return res.Result.(Result)
+	}
 	return Result{
-		res: res,
-		err: err,
+		err: res.Err,
+		res: res.Result.(sql.Result),
+	}
+}
+
+var _ Handler = (&Inserter[any]{}).execHandler
+
+func (i *Inserter[T]) execHandler(ctx context.Context, qc *QueryContext) *QueryResult {
+	q, err := i.Build()
+	if err != nil {
+		return &QueryResult{
+			Err: err,
+			Result: Result{
+				err: err,
+			},
+		}
+	}
+	res, err := i.sess.execContext(ctx, q.SQL, q.Args...)
+	return &QueryResult{
+		Err: err,
+		Result: Result{
+			err: err,
+			res: res,
+		},
 	}
 }

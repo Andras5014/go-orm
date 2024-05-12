@@ -38,7 +38,11 @@ func OpenDB(db *sql.DB, opts ...DBOption) (*DB, error) {
 	}
 	return res, nil
 }
-
+func DBWithMiddlewares(middlewares ...Middleware) DBOption {
+	return func(db *DB) {
+		db.middlewares = middlewares
+	}
+}
 func DBWithDialect(dialect Dialect) DBOption {
 	return func(db *DB) {
 		db.dialect = dialect
