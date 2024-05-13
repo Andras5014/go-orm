@@ -21,13 +21,47 @@ type standardSQL struct {
 }
 
 func (s standardSQL) quoter() byte {
-	//TODO implement me
-	panic("implement me")
+	return '`'
 }
 
 func (s standardSQL) buildUpsert(b *builder, upsert *Upsert) error {
-	//TODO implement me
-	panic("implement me")
+	b.sb.WriteString(" ON CONFLICT (")
+	for i, col := range upsert.conflictColumns {
+		if i > 0 {
+			b.sb.WriteString(",")
+		}
+		err := b.buildColumn(Column{name: col})
+		if err != nil {
+			return err
+		}
+	}
+	b.sb.WriteString(") DO UPDATE SET ")
+	for i, assign := range upsert.assigns {
+		if i > 0 {
+			b.sb.WriteString(",")
+		}
+		switch a := assign.(type) {
+		case Assignment:
+			fd, ok := b.model.FieldMap[a.col]
+			if !ok {
+				return errs.NewErrUnknownField(a.col)
+			}
+			b.quote(fd.ColName)
+			b.sb.WriteString("=?")
+			b.addArg(a.val)
+		case Column:
+			fd, ok := b.model.FieldMap[a.name]
+			if !ok {
+				return errs.NewErrUnknownField(a.name)
+			}
+			b.quote(fd.ColName)
+			b.sb.WriteString("=EXCLUDED.")
+			b.quote(fd.ColName)
+		default:
+			return errs.NewErrUnsupportedAssignable(assign)
+		}
+	}
+	return nil
 }
 
 type mysqlDialect struct {

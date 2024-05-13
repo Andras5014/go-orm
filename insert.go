@@ -162,23 +162,3 @@ func (i *Inserter[T]) Exec(ctx context.Context) Result {
 		res: res.Result.(sql.Result),
 	}
 }
-
-//func (i *Inserter[T]) execHandler(ctx context.Context, qc *QueryContext) *QueryResult {
-//	q, err := i.Build()
-//	if err != nil {
-//		return &QueryResult{
-//			Err: err,
-//			Result: Result{
-//				err: err,
-//			},
-//		}
-//	}
-//	res, err := i.sess.execContext(ctx, q.SQL, q.Args...)
-//	return &QueryResult{
-//		Err: err,
-//		Result: Result{
-//			err: err,
-//			res: res,
-//		},
-//	}
-//}

@@ -104,67 +104,6 @@ func (s *Selector[T]) Build() (*Query, error) {
 
 }
 
-// func (s *Selector[T]) buildExpression(expr Expression) error {
-//
-//		switch exp := expr.(type) {
-//		case nil:
-//			return nil
-//		case Predicate:
-//			// 构建 p.left
-//			// 构建 p.op
-//			// 构建 p.right
-//
-//			_, ok := exp.left.(Predicate)
-//			if ok {
-//				s.sb.WriteByte('(')
-//			}
-//			if err := s.buildExpression(exp.left); err != nil {
-//				return err
-//			}
-//			if ok {
-//				s.sb.WriteByte(')')
-//			}
-//			if exp.op != "" {
-//				s.sb.WriteByte(' ')
-//				s.sb.WriteString(exp.op.String())
-//				s.sb.WriteByte(' ')
-//			}
-//
-//			_, ok = exp.right.(Predicate)
-//			if ok {
-//				s.sb.WriteByte('(')
-//			}
-//			if err := s.buildExpression(exp.right); err != nil {
-//				return err
-//			}
-//			if ok {
-//				s.sb.WriteByte(')')
-//			}
-//
-//		case Column:
-//			exp.alias = ""
-//			return s.buildColumn(exp)
-//		case value:
-//			s.addArg(exp.arg)
-//			s.sb.WriteString("?")
-//		case RawExpr:
-//			s.sb.WriteString(exp.raw)
-//			s.addArg(exp.args...)
-//		case Aggregate:
-//			s.sb.WriteString(exp.fn)
-//			s.sb.WriteString("(`")
-//			fd, ok := s.model.FieldMap[exp.arg]
-//			if !ok {
-//				return errs.NewErrUnknownColumn(exp.arg)
-//			}
-//			s.sb.WriteString(fd.ColName)
-//			s.sb.WriteString("`)")
-//
-//		default:
-//			return errs.NewErrUnsupportedExpr(exp)
-//		}
-//		return nil
-//	}
 func (s *Selector[T]) buildColumns() error {
 	if len(s.columns) == 0 {
 		s.sb.WriteByte('*')
@@ -195,13 +134,6 @@ func (s *Selector[T]) buildColumns() error {
 	return nil
 }
 
-//	func (s *Selector[T]) buildPredicates(ps []Predicate) error {
-//		p := ps[0]
-//		for i := 1; i < len(ps); i++ {
-//			p = p.And(ps[i])
-//		}
-//		return s.buildExpression(p)
-//	}
 func (s *Selector[T]) buildAggregate(a Aggregate, useAlias bool) error {
 	s.sb.WriteString(a.fn)
 	s.sb.WriteByte('(')
@@ -246,10 +178,6 @@ func (s *Selector[T]) buildOrderBy() error {
 	return nil
 }
 
-//	func (s *Selector[T]) Select(columns ...string) *Selector[T] {
-//		s.columns = columns
-//		return s
-//	}
 func (s *Selector[T]) Select(columns ...Selectable) *Selector[T] {
 	s.columns = columns
 	return s
@@ -301,56 +229,6 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	}
 	return nil, res.Err
 }
-
-//func getHandler[T any](ctx context.Context, sess Session, c core, qc *QueryContext) *QueryResult {
-//	q, err := qc.Builder.Build()
-//	// 构造sql失败
-//	if err != nil {
-//		return &QueryResult{
-//			Err: err,
-//		}
-//	}
-//	// 发起查询, 处理结果集
-//	rows, err := sess.queryContext(ctx, q.SQL, q.Args...)
-//	// 查询错误
-//	if err != nil {
-//		return &QueryResult{
-//			Err: err,
-//		}
-//	}
-//	if !rows.Next() {
-//		return &QueryResult{
-//			Err: ErrNoRows,
-//		}
-//	}
-//
-//	tp := new(T)
-//	val := c.creator(c.model, tp)
-//	err = val.SetColumns(rows)
-//	return &QueryResult{
-//		Err:    err,
-//		Result: tp,
-//	}
-//}
-
-//func (s *Selector[T]) GetV1(ctx context.Context) (*T, error) {
-//	q, err := s.Build()
-//	// 构造sql失败
-//	if err != nil {
-//		return nil, err
-//	}
-//	// 发起查询, 处理结果集
-//	db := s.db.db
-//	rows, err := db.QueryContext(ctx, q.SQL, q.Args...)
-//	// 查询错误
-//	if err != nil {
-//		return nil, err
-//	}
-//	if !rows.Next() {
-//		return nil, ErrNoRows
-//	}
-//
-//}
 
 func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
 	q, err := s.Build()
