@@ -19,7 +19,7 @@ func (b *builder) quote(name string) {
 }
 
 // buildPredicate 构造谓词（条件）
-func (b *builder) buildPredicate(ps []Predicate) error {
+func (b *builder) buildPredicates(ps []Predicate) error {
 	p := ps[0]
 	for i := 1; i < len(ps); i++ {
 		p = p.And(ps[i])

@@ -11,6 +11,9 @@ type RawExpr struct {
 	args []any
 }
 
+func (r RawExpr) assign() {
+}
+
 func Raw(expr string, args ...any) RawExpr {
 	return RawExpr{
 		raw:  expr,

@@ -5,6 +5,8 @@ type Assignment struct {
 	val any
 }
 
+func (a Assignment) expr() {}
+
 func (a Assignment) assign() {
 }
 func Assign(col string, val any) Assignment {

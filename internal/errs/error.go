@@ -6,9 +6,10 @@ import (
 )
 
 var (
-	ErrPointerOnly   = errors.New("orm: only support one pointer")
-	ErrNoRows        = errors.New("orm: no rows in result set")
-	ErrInsertZeroRow = errors.New("orm: insert zero row")
+	ErrPointerOnly      = errors.New("orm: only support one pointer")
+	ErrNoRows           = errors.New("orm: no rows in result set")
+	ErrInsertZeroRow    = errors.New("orm: insert zero row")
+	ErrNoUpdatedColumns = errors.New("orm: no updated columns")
 )
 
 // NewErrFailedToRollback bizErr 是业务错误，rbErr 是回滚错误，panicked 是是否在回滚时发生 panic
@@ -31,4 +32,7 @@ func NewErrUnknownColumn(c string) error {
 }
 func NewErrUnsupportedAssignable(assign any) error {
 	return fmt.Errorf("orm: unsupported assignable: %s", assign)
+}
+func NewErrUnsupportedAssignableType(assign any) error {
+	return fmt.Errorf("orm: unsupported assignable type: %s", assign)
 }

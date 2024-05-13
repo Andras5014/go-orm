@@ -40,7 +40,7 @@ func (d *Deleter[T]) Build() (*Query, error) {
 	if len(d.where) > 0 {
 		d.sb.WriteString(" WHERE ")
 
-		if err := d.buildPredicate(d.where); err != nil {
+		if err := d.buildPredicates(d.where); err != nil {
 			return nil, err
 		}
 

@@ -224,7 +224,7 @@ func TestSelector_Get(t *testing.T) {
 		{
 			name:    "invalid query",
 			s:       NewSelector[TestModel](db).Where(C("XXXX").Eq("Tom")),
-			wantErr: errs.NewErrUnknownField("XXXX"),
+			wantErr: errs.NewErrUnknownColumn("XXXX"),
 		},
 		{
 			name:    "query error",
